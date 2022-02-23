@@ -115,10 +115,10 @@ def getLowerLows(data: np.array, order=5, K=2):
 
     return extrema
 
-
-ticker = 'BTC'
-yfObj = yf.Ticker(ticker)
-data = yfObj.history(start='2021-12-01', end='2022-02-01')
+#  Data from y finance
+# ticker = 'BTC'
+# yfObj = yf.Ticker(ticker)
+# data = yfObj.history(start='2021-12-01', end='2022-02-01')
 
 # plt.figure(figsize=(15, 8))
 # plt.plot(data['Close'])
@@ -128,13 +128,56 @@ data = yfObj.history(start='2021-12-01', end='2022-02-01')
 # plt.show()
 
 
-data['local_max'] = data['Close'][
-    (data['Close'].shift(1) < data['Close']) &
-    (data['Close'].shift(-1) < data['Close'])]
+#  Get Data Hourly
 
-data['local_min'] = data['Close'][
-    (data['Close'].shift(1) > data['Close']) &
-    (data['Close'].shift(-1) > data['Close'])]
+import requests
+from datetime import datetime
+from time import time
+import pandas as pd
+
+base_url = "https://api.kucoin.com"
+coin_pair = "BTC-USDT"  # BTC-USDT
+frequency = "1hour"  # 1hour 4hour 1min
+# get timestamp date of today in seconds
+now_is = int(time())
+days = 5
+# sec  min  hour days
+days_delta = 60 * 60 * 24 * days
+start_At = now_is - days_delta
+# print(now_is)
+price_url = f"/api/v1/market/candles?type={frequency}&symbol={coin_pair}&startAt={start_At}&endAt={now_is}"
+
+price_dict = {}
+
+prices = requests.get(base_url + price_url).json()
+print(prices)
+
+
+
+for item in prices['data']:
+    # convert date from timestamp to Y M D
+    date_converted = datetime.fromtimestamp(int(item[0])).strftime("%Y-%m-%d-%H")
+    price_dict[date_converted] = item[2]
+
+priceDF = pd.DataFrame(price_dict, index=["price"]).T
+# Convert prices into a float
+priceDF['price'] = priceDF['price'].astype(float)
+
+# convert dates to datetime from object
+priceDF.index = pd.to_datetime(priceDF.index)
+
+# reverse dates
+priceDF = priceDF.iloc[::-1]
+
+data = priceDF
+
+data['local_max'] = data['price'][
+    (data['price'].shift(1) < data['price']) &
+    (data['price'].shift(-1) < data['price'])]
+
+data['local_min'] = data['price'][
+    (data['price'].shift(1) > data['price']) &
+    (data['price'].shift(-1) > data['price'])]
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -152,7 +195,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 from datetime import timedelta
 
-close = data['Close'].values
+close = data['price'].values
 dates = data.index
 
 order = 3
@@ -164,7 +207,7 @@ ll = getLowerLows(close, order, K)
 lh = getLowerHighs(close, order, K)
 
 plt.figure(figsize=(15, 8))
-plt.plot(data['Close'])
+plt.plot(data['price'])
 _ = [plt.plot(dates[i], close[i], c=colors[1]) for i in hh]
 _ = [plt.plot(dates[i], close[i], c=colors[2]) for i in hl]
 _ = [plt.plot(dates[i], close[i], c=colors[3]) for i in ll]
@@ -180,7 +223,7 @@ _ = [plt.scatter(dates[i[-1]] + timedelta(order), close[i[-1]],
                  c=colors[4], marker='v', s=100) for i in lh]
 plt.xlabel('Date')
 plt.ylabel('Price ($)')
-plt.title(f'Potential Divergence Points for {ticker} Closing Price')
+plt.title(f'Potential Divergence Points for BTC Closing Price')
 legend_elements = [
     Line2D([0], [0], color=colors[0], label='Close'),
     Line2D([0], [0], color=colors[1], label='Higher Highs'),
@@ -210,7 +253,7 @@ plt.show()
 
 # ----------------------------------- Calculate RSI
 def calcRSI(data, P=14):
-    data['diff_close'] = data['Close'] - data['Close'].shift(1)
+    data['diff_close'] = data['price'] - data['price'].shift(1)
     data['gain'] = np.where(data['diff_close'] > 0, data['diff_close'], 0)
     data['loss'] = np.where(data['diff_close'] < 0, np.abs(data['diff_close']), 0)
     data[['init_avg_gain', 'init_avg_loss']] = data[
@@ -246,10 +289,10 @@ rsi_lh = getLowerHighs(rsi, order)
 rsi_ll = getLowerLows(rsi, order)
 rsi_hl = getHigherLows(rsi, order)
 
-hh_idx = getHigherHighs(data['Close'].values, order)
-lh_idx = getLowerHighs(data['Close'].values, order)
-hl_idx = getLowerLows(data['Close'].values, order)
-ll_idx = getHigherLows(data['Close'].values, order)
+hh_idx = getHigherHighs(data['price'].values, order)
+lh_idx = getLowerHighs(data['price'].values, order)
+hl_idx = getLowerLows(data['price'].values, order)
+ll_idx = getHigherLows(data['price'].values, order)
 
 
 # For getting Index
@@ -305,7 +348,7 @@ def RSIDivergenceStrategy(data, P=14, order=5, K=2):
     Sell if divergence disappears.
     Sell if the RSI crosses the centerline.
     '''
-    data = getPeaks(data, key='Close', order=order, K=K)
+    data = getPeaks(data, key='price', order=order, K=K)
     data = calcRSI(data, P=P)
     data = getPeaks(data, key='RSI', order=order, K=K)
 
@@ -343,7 +386,7 @@ def RSIDivergenceStrategy(data, P=14, order=5, K=2):
 
 def calcReturns(df):
     # Helper function to avoid repeating too much code
-    df['returns'] = df['Close'] / df['Close'].shift(1)
+    df['returns'] = df['price'] / df['price'].shift(1)
     df['log_returns'] = np.log(df['returns'])
     df['strat_returns'] = df['position'].shift(1) * df['returns']
     df['strat_log_returns'] = df['position'].shift(1) * df['log_returns']
@@ -355,9 +398,9 @@ def calcReturns(df):
 
 
 # ---------------------------------------- Ploting
-price = data['Close'].values
+price = data['price'].values
 fig, ax = plt.subplots(2, figsize=(20, 12), sharex=True)
-ax[0].plot(data['Close'])
+ax[0].plot(data['price'])
 ax[0].scatter(dates[hh_idx], price[hh_idx - order],
               marker='^', c=colors[1])
 ax[0].scatter(dates[lh_idx], price[lh_idx - order],
