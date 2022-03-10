@@ -168,6 +168,7 @@ hl = getHigherLows(close, order, K)
 ll = getLowerLows(close, order, K)
 lh = getLowerHighs(close, order, K)
 
+
 # --------------- Calculate RSI
 # ----------------------------------- Calculate RSI
 def calcRSI(data, P=14):
@@ -202,3 +203,53 @@ def calcRSI(data, P=14):
 data_rsi = calcRSI(data.copy())
 rsi = data_rsi['RSI'].values
 
+# get point for rsi
+rsi_hh = getHigherHighs(rsi, order)
+rsi_lh = getLowerHighs(rsi, order)
+rsi_ll = getLowerLows(rsi, order)
+rsi_hl = getHigherLows(rsi, order)
+
+
+# ----------- Function for calculate index
+def getHHIndex(data: np.array, order=5, K=2):
+    extrema = getHigherHighs(data, order, K)
+    idx = np.array([i[-1] + order for i in extrema])
+    return idx[np.where(idx < len(data))]
+
+
+def getLHIndex(data: np.array, order=5, K=2):
+    extrema = getLowerHighs(data, order, K)
+    idx = np.array([i[-1] + order for i in extrema])
+    return idx[np.where(idx < len(data))]
+
+
+def getLLIndex(data: np.array, order=5, K=2):
+    extrema = getLowerLows(data, order, K)
+    idx = np.array([i[-1] + order for i in extrema])
+    return idx[np.where(idx < len(data))]
+
+
+def getHLIndex(data: np.array, order=5, K=2):
+    extrema = getHigherLows(data, order, K)
+    idx = np.array([i[-1] + order for i in extrema])
+    return idx[np.where(idx < len(data))]
+
+
+rsi_hh_index = getHHIndex(rsi, order)
+rsi_lh_index = getLHIndex(rsi, order)
+rsi_ll_index = getLLIndex(rsi, order)
+rsi_hl_index = getHLIndex(rsi, order)
+
+hh_index = getHHIndex(close, order, K)
+hl_index = getLHIndex(close, order, K)
+ll_index = getLLIndex(close, order, K)
+lh_index = getHLIndex(close, order, K)
+
+print(lh_index)
+
+df_result = pd.DataFrame(
+    list(zip(rsi_hh_index, rsi_lh_index, rsi_ll_index, rsi_hl_index, hh_index, hl_index, ll_index, lh_index)),
+    columns=['rsi_hh', 'rsi_lh','rsi_ll','rsi_hl','hh', 'lh','ll','hl'])
+
+print(df_result)
+print(data_rsi)
